@@ -357,7 +357,47 @@ async function ocrLocal(dataUrl, nome, mime, onProgress) {
   return ehPdf(nome, mime) ? lerPdf(dataUrl, onProgress) : lerImagem(dataUrl, onProgress);
 }
 
-/* ---------- 8. PARSER DA NOTIFICACAO ----------
+/* ---------- 8. CONDUTOR: NOME E VINCULO PLACA -> MOTORISTA ---------- */
+const NOME_LIXO = /(N[ÃA]O IDENTIFICAD|N[ÃA]O INFORMAD|NAO CONSTA|IDENTIFICA[ÇC][ÃA]O|INDICA[ÇC][ÃA]O|CONDUTOR|MOTORISTA|INFRATOR|PROPRIET[ÁA]RI|VE[ÍI]CULO|MARCA|MODELO|PLACA|[ÓO]RG[ÃA]O|AUTUADOR|MUNIC[ÍI]PIO|ENDERE[ÇC]O|LOGRADOURO|TRANSTAC|LTDA|EIRELI|\bS\/?A\b|CNPJ|CPF|CNH|RG\b|RENAVAM|CATEGORIA|A INDICAR|PENDENTE)/;
+
+/** Recebe um trecho de texto e devolve um nome de pessoa valido, ou null. */
+function nomePessoa(bruto) {
+  if (!bruto) return null;
+  let t = String(bruto).replace(/[|;_]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  // corta no primeiro campo seguinte (CPF, CNH, data, numero...)
+  t = t.split(/\s+(?:CPF|CNH|RG|RENACH|REGISTRO|N[ºO°]|DATA|NASC|UF|CEP)\b/i)[0];
+  t = t.replace(/[:\-–.,]+$/, '').trim();
+  if (/\d/.test(t)) return null;
+  if (t.length < 6 || t.length > 60) return null;
+  if (NOME_LIXO.test(t.toUpperCase())) return null;
+  const palavras = t.split(/\s+/).filter(w => /^[A-Za-zÀ-ú']{2,}$/.test(w));
+  if (palavras.length < 2) return null;
+  return palavras.join(' ');
+}
+
+/* De-para placa -> motorista aprendido automaticamente a cada salvamento */
+const VINCULO_KEY = 'transtac_multas_placas_v1';
+function normPlaca(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function vinculosPlaca() { try { return JSON.parse(localStorage.getItem(VINCULO_KEY) || '{}'); } catch (e) { return {}; } }
+function motoristaDaPlaca(placa) { return vinculosPlaca()[normPlaca(placa)] || ''; }
+function lembrarMotorista(placa, motorista) {
+  const p = normPlaca(placa), m = String(motorista || '').trim();
+  if (!p || !m) return;
+  const v = vinculosPlaca(); v[p] = m;
+  try { localStorage.setItem(VINCULO_KEY, JSON.stringify(v)); } catch (e) {}
+}
+/** Completa o motorista pela placa quando a notificacao nao traz o condutor. */
+function completarMotorista(campos) {
+  if (!campos || campos.motorista || !campos.placa) return campos;
+  const m = motoristaDaPlaca(campos.placa);
+  if (m) {
+    campos.motorista = m;
+    campos._guessed = (campos._guessed || []).concat('motorista');
+  }
+  return campos;
+}
+
+/* ---------- 9. PARSER DA NOTIFICACAO ----------
    Le o texto do OCR e devolve os campos da multa.
    Tudo que for deduzido vem marcado em _guessed.               */
 function parseMulta(textoBruto) {
@@ -366,14 +406,16 @@ function parseMulta(textoBruto) {
   const out = { _guessed: [] };
   const set = (k, v) => { if (v !== null && v !== undefined && v !== '' && !out[k]) { out[k] = v; out._guessed.push(k); } };
 
-  // valor logo apos um rotulo
-  const aposRotulo = (rotulos, regex, janela) => {
+  // valor logo apos um rotulo (testa TODAS as ocorrencias do rotulo no documento)
+  const aposRotulo = (rotulos, regex, janela, valida) => {
     for (const r of rotulos) {
-      const i = T.indexOf(r);
-      if (i < 0) continue;
-      const trecho = texto.slice(i + r.length, i + r.length + (janela || 90));
-      const m = trecho.match(regex);
-      if (m) return m[1];
+      let i = T.indexOf(r);
+      while (i >= 0) {
+        const trecho = texto.slice(i + r.length, i + r.length + (janela || 90));
+        const m = trecho.match(regex);
+        if (m && (!valida || valida(m[1]))) return m[1];
+        i = T.indexOf(r, i + 1);
+      }
     }
     return null;
   };
@@ -443,6 +485,15 @@ function parseMulta(textoBruto) {
     .find(descValida);
   if (desc) set('descricaoInfracao', desc.trim().replace(/\s{2,}/g, ' '));
 
+  // Condutor / motorista
+  const ROT_CONDUTOR = [
+    'CONDUTOR IDENTIFICADO', 'NOME DO CONDUTOR', 'NOME DO MOTORISTA', 'NOME DO INFRATOR',
+    'CONDUTOR INFRATOR', 'CONDUTOR RESPONSÁVEL', 'CONDUTOR RESPONSAVEL',
+    'CONDUTOR', 'MOTORISTA', 'NOME DO CONDUTOR INFRATOR'
+  ];
+  const condutor = aposRotulo(ROT_CONDUTOR, /\s*[:\-]?\s*([^\n]{5,70})/, 100, v => !!nomePessoa(v));
+  if (condutor) set('motorista', nomePessoa(condutor));
+
   // Gravidade e pontos
   if (/GRAV[IÍ]SSIM/.test(T)) set('gravidade', 'GRAVISSIMA');
   else if (/\bGRAVE\b/.test(T)) set('gravidade', 'GRAVE');
@@ -472,7 +523,7 @@ function parseMulta(textoBruto) {
   return out;
 }
 
-/* ---------- 9. FILTRO/ORDENACAO REAPROVEITAVEIS ---------- */
+/* ---------- 10. FILTRO/ORDENACAO REAPROVEITAVEIS ---------- */
 function aplicarFiltros(lista, f) {
   const q = (f.q || '').trim().toLowerCase();
   return lista.filter(m => {
@@ -490,7 +541,7 @@ function aplicarFiltros(lista, f) {
   });
 }
 
-/* ---------- 10. EXPORTACAO CSV ---------- */
+/* ---------- 11. EXPORTACAO CSV ---------- */
 function exportarCSV(lista, nome) {
   const cols = ['ait', 'placa', 'motorista', 'orgao', 'dataInfracao', 'horaInfracao', 'codigoInfracao',
     'descricaoInfracao', 'gravidade', 'pontos', 'valor', 'vencimento', 'prazoIndicacao',
