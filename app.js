@@ -8,8 +8,7 @@
    Enquanto estiver vazia, o app roda em MODO DEMO (localStorage),
    com OCR feito no proprio navegador (Tesseract.js).            */
 window.MULTAS_CONFIG = {
-  API_URL: '',              // ex.: 'https://script.google.com/macros/s/AKfy.../exec'
-  TOKEN: 'transtac-multas'  // deve ser igual ao TOKEN do Codigo.gs
+  API_URL: 'https://script.google.com/macros/s/AKfycbzb_GTyA8d804LVO6ybebDrGwcyEJ-4EKm1g4dISyNMfIQffKh6ejaROyLeV7fifJmP/exec',
 };
 
 /* ---------- 2. DOMINIOS ---------- */
