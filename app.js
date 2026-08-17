@@ -120,17 +120,60 @@ function toast(msg, ms) {
   t._h = setTimeout(() => t.classList.remove('show'), ms || 2600);
 }
 
-/* ---------- 4. CABECALHO / NAVEGACAO ---------- */
+/* ---------- 4. SPLASH DE CARREGAMENTO ---------- */
+(function () {
+  const MIN_MS = 900;          // tempo minimo com a logo na tela
+  const MAX_MS = 4000;         // trava de seguranca
+  const inicio = Date.now();
+  let fechado = false;
+
+  function fecharSplash() {
+    if (fechado) return;
+    fechado = true;
+    const s = document.getElementById('splash');
+    if (!s) return;
+    const espera = Math.max(0, MIN_MS - (Date.now() - inicio));
+    setTimeout(() => {
+      s.classList.add('hide');
+      setTimeout(() => s.remove(), 600);
+    }, espera);
+  }
+
+  window.fecharSplash = fecharSplash;
+  window.addEventListener('load', fecharSplash);
+  setTimeout(fecharSplash, MAX_MS);
+})();
+
+/* ---------- 5. CABECALHO / NAVEGACAO ---------- */
 const MARK = '<svg class="brand-mark" viewBox="0 0 48 56" xmlns="http://www.w3.org/2000/svg">' +
   '<path d="M24 2 L44 10 V26 C44 40 36 50 24 54 C12 50 4 40 4 26 V10 Z" fill="none" stroke="currentColor" stroke-width="3.5"/>' +
   '<text x="24" y="35" font-size="22" font-weight="800" text-anchor="middle" fill="currentColor" font-family="-apple-system, Arial, sans-serif">T</text></svg>';
 
+/* Logo oficial: coloque logo-transtac.png na mesma pasta do deploy.
+   Se o arquivo nao existir, entra automaticamente a marca em SVG. */
+const LOGO_ARQUIVO = 'logo-transtac.png';
+
 function montarHeader(titulo, sub, voltar) {
   const h = $('header'); if (!h) return;
   h.innerHTML =
-    '<div class="brand">' + MARK + '<span class="brand-word">TRANSTAC<small>TRANSPORTES</small></span></div>' +
-    '<div><h1>' + esc(titulo) + '</h1><p>' + esc(sub || '') + '</p></div>' +
-    '<a class="home-link" href="' + (voltar || 'index.html') + '">← Voltar</a>';
+    '<div class="top-left">' +
+      '<a class="home-link" href="' + (voltar || 'index.html') + '">← Voltar</a>' +
+    '</div>' +
+    '<div class="top-center">' +
+      '<img class="logo" id="logoTranstac" src="' + LOGO_ARQUIVO + '" alt="TRANSTAC TRANSPORTES">' +
+      '<h1>' + esc(titulo) + '</h1>' +
+    '</div>' +
+    '<div class="top-right"></div>';
+
+  const img = $('#logoTranstac');
+  if (img) {
+    img.onerror = function () {
+      const marca = document.createElement('div');
+      marca.className = 'brand';
+      marca.innerHTML = MARK + '<span class="brand-word">TRANSTAC<small>TRANSPORTES</small></span>';
+      img.replaceWith(marca);
+    };
+  }
 }
 function montarSubnav(ativo) {
   const n = $('#subnav'); if (!n) return;
@@ -146,7 +189,7 @@ function montarSubnav(ativo) {
   ).join('');
 }
 
-/* ---------- 5. CLIENTE DE API (Apps Script) ----------
+/* ---------- 6. CLIENTE DE API (Apps Script) ----------
    POST com Content-Type text/plain evita preflight CORS.       */
 async function api(action, payload) {
   const url = window.MULTAS_CONFIG.API_URL;
@@ -162,7 +205,7 @@ async function api(action, payload) {
 }
 function modoDemo() { return !window.MULTAS_CONFIG.API_URL; }
 
-/* ---------- 6. MODO DEMO (localStorage) ---------- */
+/* ---------- 7. MODO DEMO (localStorage) ---------- */
 const DEMO_KEY = 'transtac_multas_v1';
 function demoLer() { try { return JSON.parse(localStorage.getItem(DEMO_KEY) || '[]'); } catch (e) { return []; } }
 function demoGravar(l) { localStorage.setItem(DEMO_KEY, JSON.stringify(l)); }
@@ -193,22 +236,116 @@ async function demoApi(action, p) {
   throw new Error('Ação desconhecida: ' + action);
 }
 
-/* OCR local (fallback do modo demo) usando Tesseract.js via CDN */
-let _tessLoaded = null;
-function carregarTesseract() {
-  if (_tessLoaded) return _tessLoaded;
-  _tessLoaded = new Promise((ok, err) => {
+/* ==========================================================
+   LEITURA LOCAL DE PDF E IMAGEM (modo demo)
+   - PDF digital  -> texto extraido direto com pdf.js (rapido e exato)
+   - PDF escaneado -> paginas viram imagem e passam pelo OCR (Tesseract)
+   - JPG / PNG     -> OCR direto
+   ========================================================== */
+const CDN_PDFJS   = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const CDN_PDFWORK = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const CDN_TESS    = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js';
+
+function carregarScript(src, erro) {
+  return new Promise((ok, err) => {
+    if (Array.from(document.scripts).some(s => s.src === src)) return ok();
     const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js';
-    s.onload = ok; s.onerror = () => err(new Error('Não foi possível carregar o OCR local.'));
+    s.src = src;
+    s.onload = () => ok();
+    s.onerror = () => err(new Error(erro));
     document.head.appendChild(s);
   });
+}
+
+let _tessLoaded = null;
+function carregarTesseract() {
+  if (!_tessLoaded) _tessLoaded = carregarScript(CDN_TESS, 'Não foi possível carregar o OCR (sem internet?).');
   return _tessLoaded;
 }
-async function ocrLocal(dataUrl, nome, mime, onProgress) {
-  if (/pdf/i.test(mime || '') || /\.pdf$/i.test(nome || '')) {
-    throw new Error('No modo demo o OCR local lê apenas imagens (JPG/PNG). Configure a API para ler PDFs.');
+let _pdfLoaded = null;
+function carregarPdfJs() {
+  if (!_pdfLoaded) {
+    _pdfLoaded = carregarScript(CDN_PDFJS, 'Não foi possível carregar o leitor de PDF (sem internet?).')
+      .then(() => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = CDN_PDFWORK; });
   }
+  return _pdfLoaded;
+}
+
+function ehPdf(nome, mime) {
+  return /pdf/i.test(mime || '') || /\.pdf$/i.test(nome || '');
+}
+/** 'data:...;base64,XXXX' -> Uint8Array */
+function dataUrlParaBytes(dataUrl) {
+  const b64 = String(dataUrl).split(',')[1] || '';
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+/** Monta o texto de uma pagina respeitando as linhas do documento. */
+function textoDaPagina(content) {
+  const linhas = [];
+  let yAtual = null, buf = [];
+  content.items.forEach(it => {
+    const txt = (it.str || '');
+    const y = Math.round(it.transform[5]);
+    if (yAtual === null || Math.abs(y - yAtual) <= 2.5) {
+      buf.push(txt);
+    } else {
+      linhas.push(buf.join(' ').replace(/\s{2,}/g, ' ').trim());
+      buf = [txt];
+    }
+    yAtual = y;
+  });
+  if (buf.length) linhas.push(buf.join(' ').replace(/\s{2,}/g, ' ').trim());
+  return linhas.filter(Boolean).join('\n');
+}
+
+/** Le um PDF: tenta o texto embutido; se nao houver, rasteriza e roda OCR. */
+async function lerPdf(dataUrl, onProgress) {
+  await carregarPdfJs();
+  const doc = await window.pdfjsLib.getDocument({ data: dataUrlParaBytes(dataUrl) }).promise;
+  const total = doc.numPages;
+  const partes = [];
+
+  for (let n = 1; n <= total; n++) {
+    if (onProgress) onProgress((n - 1) / total * 0.5);
+    const page = await doc.getPage(n);
+    partes.push(textoDaPagina(await page.getTextContent()));
+  }
+  let texto = partes.join('\n').trim();
+
+  // PDF digital: ja temos o texto, nem precisa de OCR
+  const letras = (texto.match(/[A-Za-zÀ-ú]/g) || []).length;
+  if (letras >= 120) { if (onProgress) onProgress(1); return texto; }
+
+  // PDF escaneado: cada pagina vira imagem e passa pelo OCR
+  await carregarTesseract();
+  const ocr = [];
+  for (let n = 1; n <= total; n++) {
+    const page = await doc.getPage(n);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    const r = await window.Tesseract.recognize(canvas, 'por', {
+      logger: m => {
+        if (onProgress && m.status === 'recognizing text') {
+          onProgress(0.5 + ((n - 1) + m.progress) / total * 0.5);
+        }
+      }
+    });
+    ocr.push(r.data.text || '');
+  }
+  texto = (texto + '\n' + ocr.join('\n')).trim();
+  if (!texto) throw new Error('Não foi possível ler nenhum texto deste PDF.');
+  return texto;
+}
+
+/** Le uma imagem via OCR. */
+async function lerImagem(dataUrl, onProgress) {
   await carregarTesseract();
   const r = await window.Tesseract.recognize(dataUrl, 'por', {
     logger: m => { if (onProgress && m.status === 'recognizing text') onProgress(m.progress); }
@@ -216,7 +353,11 @@ async function ocrLocal(dataUrl, nome, mime, onProgress) {
   return r.data.text || '';
 }
 
-/* ---------- 7. PARSER DA NOTIFICACAO ----------
+async function ocrLocal(dataUrl, nome, mime, onProgress) {
+  return ehPdf(nome, mime) ? lerPdf(dataUrl, onProgress) : lerImagem(dataUrl, onProgress);
+}
+
+/* ---------- 8. PARSER DA NOTIFICACAO ----------
    Le o texto do OCR e devolve os campos da multa.
    Tudo que for deduzido vem marcado em _guessed.               */
 function parseMulta(textoBruto) {
@@ -331,7 +472,7 @@ function parseMulta(textoBruto) {
   return out;
 }
 
-/* ---------- 8. FILTRO/ORDENACAO REAPROVEITAVEIS ---------- */
+/* ---------- 9. FILTRO/ORDENACAO REAPROVEITAVEIS ---------- */
 function aplicarFiltros(lista, f) {
   const q = (f.q || '').trim().toLowerCase();
   return lista.filter(m => {
@@ -349,7 +490,7 @@ function aplicarFiltros(lista, f) {
   });
 }
 
-/* ---------- 9. EXPORTACAO CSV ---------- */
+/* ---------- 10. EXPORTACAO CSV ---------- */
 function exportarCSV(lista, nome) {
   const cols = ['ait', 'placa', 'motorista', 'orgao', 'dataInfracao', 'horaInfracao', 'codigoInfracao',
     'descricaoInfracao', 'gravidade', 'pontos', 'valor', 'vencimento', 'prazoIndicacao',
