@@ -3,10 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b0b0c">
 <title>Multas · TRANSTAC</title>
+<link rel="icon" href="logo-transtac.png">
 <link rel="stylesheet" href="multas.css">
 </head>
 <body>
+<div id="splash">
+  <img class="splash-logo" src="logo-transtac.png" alt="TRANSTAC TRANSPORTES">
+  <div class="splash-bar"><i></i></div>
+  <div class="splash-txt">Carregando</div>
+</div>
+<script>setTimeout(function(){var s=document.getElementById('splash');if(s)s.remove();},6000);</script>
 <header></header>
 
 <main>
@@ -108,7 +116,7 @@
     </div>
     <div class="meta" id="e_anexo"></div>
     <div class="modal-actions">
-      <button class="ghost-btn" id="mExcluir" style="margin-right:auto;color:#dc2626">Excluir</button>
+      <button class="ghost-btn" id="mExcluir" style="margin-right:auto;color:var(--danger);border-color:rgba(248,113,113,.5)">Excluir</button>
       <button class="ghost-btn" id="mCancelar">Cancelar</button>
       <button class="save-btn" id="mSalvar">Salvar alterações</button>
     </div>
