@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- TRANSTAC MULTAS | build v3-2026-08-17 | pagina=cadastro -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -87,6 +88,7 @@
   </details>
 </main>
 
+<datalist id="listaMotoristas"></datalist>
 <script src="app.js"></script>
 <script>
 montarHeader('NOVA MULTA', 'Anexe a notificação e confira os dados extraídos.', 'index.html');
@@ -140,7 +142,7 @@ async function processar(arquivos) {
         onProgress: p => setProgresso(0.25 + p * 0.7, 'Extraindo dados de ' + rotulo + '…')
       });
       document.getElementById('rawText').textContent = r.texto || '(sem texto)';
-      const campos = r.campos || {};
+      const campos = completarMotorista(r.campos || {});
       campos.anexoNome = r.anexoNome || f.name;
       campos.anexoUrl = r.anexoUrl || '';
       campos._arquivo = r.anexoUrl ? '' : dataUrl;   // guarda base64 se a API ainda nao salvou
@@ -199,7 +201,7 @@ function render() {
       '<td class="center"><button class="fdel" data-del="' + i + '" title="Remover linha">&times;</button></td>' +
       '<td' + g('ait') + '>' + inp('ait') + '</td>' +
       '<td' + g('placa') + '>' + inp('placa', 'text', 'style="text-transform:uppercase"') + '</td>' +
-      '<td>' + inp('motorista') + '</td>' +
+      '<td' + g('motorista') + '>' + inp('motorista', 'text', 'list="listaMotoristas"') + '</td>' +
       '<td' + g('orgao') + '><select data-i="' + i + '" data-k="orgao"><option value=""></option>' + opt(ORGAOS, m.orgao) + '</select></td>' +
       '<td' + g('dataInfracao') + '>' + inp('dataInfracao', 'date') + '</td>' +
       '<td' + g('codigoInfracao') + '>' + inp('codigoInfracao') + '</td>' +
@@ -219,7 +221,18 @@ function render() {
     el.addEventListener('input', () => {
       const m = fila[+el.dataset.i], k = el.dataset.k;
       m[k] = el.type === 'date' ? el.value : el.value;
-      if (k === 'placa') m.placa = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (k === 'placa') {
+        m.placa = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (!m.motorista) {
+          const auto = motoristaDaPlaca(m.placa);
+          if (auto) {
+            m.motorista = auto;
+            const campo = document.querySelector('#tbody input[data-i="' + el.dataset.i + '"][data-k="motorista"]');
+            if (campo) campo.value = auto;
+          }
+        }
+      }
+      if (k === 'motorista') lembrarMotorista(m.placa, el.value);
       if (k === 'valor') document.getElementById('resumo').textContent =
         fila.length + ' multa(s) na fila · total ' + brl(fila.reduce((s, x) => s + numero(x.valor), 0));
     });
@@ -245,6 +258,7 @@ document.getElementById('btnSalvar').onclick = async () => {
       o._arquivo = m._arquivo || '';
       return o;
     });
+    fila.forEach(m => lembrarMotorista(m.placa, m.motorista));
     await api('salvar', { itens });
     toast('Salvo: ' + itens.length + ' multa(s).');
     fila = []; anexos = []; renderAnexos(); render();
@@ -254,6 +268,13 @@ document.getElementById('btnSalvar').onclick = async () => {
     btn.textContent = 'Salvar na base'; btn.disabled = !fila.length;
   }
 };
+
+function atualizarListaMotoristas() {
+  const nomes = Array.from(new Set(Object.values(vinculosPlaca()))).sort();
+  document.getElementById('listaMotoristas').innerHTML =
+    nomes.map(n => '<option value="' + esc(n) + '">').join('');
+}
+atualizarListaMotoristas();
 
 render();
 </script>
