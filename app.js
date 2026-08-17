@@ -20,7 +20,7 @@ window.MULTAS_CONFIG = {
 window.multasInfo = function () {
   const c = window.MULTAS_CONFIG;
   const info = {
-    build: 'v8',
+    build: 'v9',
     modo: c.API_URL ? 'PRODUCAO' : 'DEMO',
     apiUrl: c.API_URL || '(vazio)',
     tokenEnviado: String(c.TOKEN || TOKEN_PADRAO).trim() || TOKEN_PADRAO
@@ -247,6 +247,7 @@ async function demoApi(action, p) {
     demoGravar(lista.filter(x => x.id !== p.id));
     return { ok: true };
   }
+  if (action === 'motoristas') return vinculosPlaca();
   if (action === 'ocr') {
     const texto = await ocrLocal(p.arquivo, p.nome, p.mime, p.onProgress);
     return { texto, campos: parseMulta(texto), anexoUrl: '', anexoNome: p.nome };
@@ -404,6 +405,23 @@ function lembrarMotorista(placa, motorista) {
   const v = vinculosPlaca(); v[p] = m;
   try { localStorage.setItem(VINCULO_KEY, JSON.stringify(v)); } catch (e) {}
 }
+/** Traz o de-para PLACA -> MOTORISTA da planilha para o navegador. */
+async function sincronizarMotoristas() {
+  try {
+    const mapa = await api('motoristas');
+    if (!mapa || typeof mapa !== 'object') return {};
+    const atual = vinculosPlaca();
+    Object.keys(mapa).forEach(function (p) {
+      const chave = normPlaca(p);
+      if (chave && mapa[p]) atual[chave] = String(mapa[p]).trim();
+    });
+    localStorage.setItem(VINCULO_KEY, JSON.stringify(atual));
+    return atual;
+  } catch (e) {
+    return vinculosPlaca();   // sem conexao: segue com o que ja esta salvo
+  }
+}
+
 /** Completa o motorista pela placa quando a notificacao nao traz o condutor. */
 function completarMotorista(campos) {
   if (!campos || campos.motorista || !campos.placa) return campos;
