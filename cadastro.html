@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TRANSTAC MULTAS | build v3-2026-08-17 | pagina=cadastro -->
+<!-- TRANSTAC MULTAS | build v8-2026-08-17 | pagina=cadastro -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#0b0b0c">
 <title>Nova Multa · TRANSTAC</title>
 <link rel="icon" href="logo-transtac.png">
-<link rel="stylesheet" href="multas.css">
+<link rel="stylesheet" href="multas.css?v=8">
 </head>
 <body>
 <div id="splash">
@@ -89,7 +89,7 @@
 </main>
 
 <datalist id="listaMotoristas"></datalist>
-<script src="app.js"></script>
+<script src="app.js?v=8"></script>
 <script>
 montarHeader('NOVA MULTA', 'Anexe a notificação e confira os dados extraídos.', 'index.html');
 montarSubnav('cadastro.html');
@@ -137,15 +137,15 @@ async function processar(arquivos) {
     try {
       const dataUrl = await lerArquivo(f);
       setProgresso(0.25, 'Extraindo dados de ' + rotulo + '…');
-      const r = await api('ocr', {
-        arquivo: dataUrl, nome: f.name, mime: f.type,
-        onProgress: p => setProgresso(0.25 + p * 0.7, 'Extraindo dados de ' + rotulo + '…')
-      });
-      document.getElementById('rawText').textContent = r.texto || '(sem texto)';
-      const campos = completarMotorista(r.campos || {});
-      campos.anexoNome = r.anexoNome || f.name;
-      campos.anexoUrl = r.anexoUrl || '';
-      campos._arquivo = r.anexoUrl ? '' : dataUrl;   // guarda base64 se a API ainda nao salvou
+      // A leitura do PDF/imagem roda sempre no navegador (pdf.js + OCR).
+      // O arquivo em si sobe para o Drive junto com o "Salvar na base".
+      const texto = await ocrLocal(dataUrl, f.name, f.type,
+        p => setProgresso(0.25 + p * 0.7, 'Extraindo dados de ' + rotulo + '…'));
+      document.getElementById('rawText').textContent = texto || '(sem texto)';
+      const campos = completarMotorista(parseMulta(texto));
+      campos.anexoNome = f.name;
+      campos.anexoUrl = '';
+      campos._arquivo = dataUrl;   // base64 enviado a API no salvamento
       addLinha(campos);
       anexos.push({ nome: f.name, tamanho: f.size });
       toast('Dados extraídos de ' + f.name);

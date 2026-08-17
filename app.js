@@ -7,8 +7,26 @@
    Cole abaixo a URL /exec do Web App do Apps Script.
    Enquanto estiver vazia, o app roda em MODO DEMO (localStorage),
    com OCR feito no proprio navegador (Tesseract.js).            */
+const TOKEN_PADRAO = 'transtac-multas';   // nao deixe esta linha em branco
+
 window.MULTAS_CONFIG = {
+  // URL /exec do Web App do Apps Script (planilha base_multas):
   API_URL: 'https://script.google.com/macros/s/AKfycbzb_GTyA8d804LVO6ybebDrGwcyEJ-4EKm1g4dISyNMfIQffKh6ejaROyLeV7fifJmP/exec',
+  // Deve ser igual ao TOKEN do Codigo.gs. Se ficar vazio, usa o TOKEN_PADRAO acima.
+  TOKEN: TOKEN_PADRAO
+};
+
+/* Confira a configuracao ativa digitando  multasInfo()  no console do navegador */
+window.multasInfo = function () {
+  const c = window.MULTAS_CONFIG;
+  const info = {
+    build: 'v8',
+    modo: c.API_URL ? 'PRODUCAO' : 'DEMO',
+    apiUrl: c.API_URL || '(vazio)',
+    tokenEnviado: String(c.TOKEN || TOKEN_PADRAO).trim() || TOKEN_PADRAO
+  };
+  console.table(info);
+  return info;
 };
 
 /* ---------- 2. DOMINIOS ---------- */
@@ -193,10 +211,11 @@ function montarSubnav(ativo) {
 async function api(action, payload) {
   const url = window.MULTAS_CONFIG.API_URL;
   if (!url) return demoApi(action, payload);
+  const token = String(window.MULTAS_CONFIG.TOKEN || TOKEN_PADRAO).trim() || TOKEN_PADRAO;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, token: window.MULTAS_CONFIG.TOKEN, payload: payload || {} })
+    body: JSON.stringify({ action, token: token, payload: payload || {} })
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || 'Falha na API');
