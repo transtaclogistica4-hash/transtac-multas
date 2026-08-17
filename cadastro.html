@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0b0b0c">
-<title>Dashboard de Multas · TRANSTAC</title>
+<title>Nova Multa · TRANSTAC</title>
 <link rel="icon" href="logo-transtac.png">
 <link rel="stylesheet" href="multas.css">
 </head>
@@ -20,152 +20,242 @@
 <main>
   <nav class="subnav" id="subnav"></nav>
 
+  <div class="card" style="margin-top:16px">
+    <div class="route-name">1. Anexe a notificação</div>
+    <div class="dropzone" id="dz">
+      <div class="dz-icon">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+      </div>
+      <div class="dz-main">Solte aqui os arquivos ou clique para selecionar</div>
+      <div class="dz-sub">PDF, JPG ou PNG · vários arquivos de uma vez · cada notificação vira uma linha na tabela · PDF escaneado passa por OCR automaticamente</div>
+      <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf">
+    </div>
+    <div class="progress" id="prog" style="display:none"><i></i></div>
+    <div class="meta" id="progTxt"></div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
   <div class="toolbar">
-    <div class="status" id="resumo">Carregando…</div>
+    <div>
+      <div class="section-title" style="margin:0">2. Confira os dados extraídos</div>
+      <div class="status" id="resumo">Nenhuma multa na fila.</div>
+    </div>
     <div class="row" style="gap:8px">
-      <div class="field sm"><input type="date" id="fde" title="Infração de"></div>
-      <div class="field sm"><input type="date" id="fate" title="Infração até"></div>
-      <button class="ghost-btn" id="btn12m">Últimos 12 meses</button>
-      <button class="reload" id="btnReload">Atualizar</button>
+      <button class="ghost-btn" id="btnLinha">+ Linha manual</button>
+      <button class="ghost-btn" id="btnLimpar">Limpar fila</button>
+      <button class="save-btn" id="btnSalvar" disabled>Salvar na base</button>
     </div>
   </div>
 
-  <div class="kpi-grid" id="kpis"></div>
-
-  <div class="chart-grid">
-    <div class="card">
-      <div class="route-name">Multas por mês</div>
-      <div id="chMes"></div>
-    </div>
-    <div class="card">
-      <div class="route-name">Situação da carteira</div>
-      <div id="chStatus"></div>
-    </div>
-    <div class="card">
-      <div class="route-name">Top motoristas (valor)</div>
-      <div id="chMotorista"></div>
-    </div>
-    <div class="card">
-      <div class="route-name">Top veículos (quantidade)</div>
-      <div id="chPlaca"></div>
-    </div>
-    <div class="card">
-      <div class="route-name">Órgão autuador</div>
-      <div id="chOrgao"></div>
-    </div>
-    <div class="card">
-      <div class="route-name">Infrações mais frequentes</div>
-      <div id="chInfracao"></div>
-    </div>
-  </div>
-
-  <div class="section-title">Vencendo nos próximos 15 dias</div>
   <div class="table-wrap">
-    <table class="data">
-      <thead><tr><th>AIT</th><th>Placa</th><th>Motorista</th><th>Infração</th><th class="num">Valor</th><th>Vencimento</th><th>Prazo</th></tr></thead>
-      <tbody id="tbVenc"></tbody>
+    <table class="data" id="tabela">
+      <thead>
+        <tr>
+          <th style="width:34px"></th>
+          <th style="min-width:130px">AIT</th>
+          <th style="min-width:100px">Placa</th>
+          <th style="min-width:160px">Motorista</th>
+          <th style="min-width:120px">Órgão</th>
+          <th style="min-width:130px">Data infração</th>
+          <th style="min-width:100px">Código</th>
+          <th style="min-width:230px">Infração</th>
+          <th style="min-width:130px">Gravidade</th>
+          <th style="min-width:120px">Valor</th>
+          <th style="min-width:130px">Vencimento</th>
+          <th style="min-width:140px">Prazo indicação</th>
+          <th style="min-width:150px">Status</th>
+          <th style="min-width:110px">Anexo</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
     </table>
-    <div class="empty" id="vazioVenc" style="display:none">Nenhum vencimento nos próximos 15 dias.</div>
+    <div class="empty" id="vazio">Anexe uma notificação — os campos aparecem aqui prontos para conferência.</div>
   </div>
+
+  <div class="hint">
+    Campos com <b>fundo laranja</b> foram preenchidos automaticamente pela leitura do documento.
+    Revise antes de salvar: a extração é uma sugestão, não substitui a conferência.
+  </div>
+
+  <details class="card" style="margin-top:14px">
+    <summary style="cursor:pointer;font-weight:600;font-size:14px">Ver texto lido do último anexo</summary>
+    <pre id="rawText" style="white-space:pre-wrap;font-size:12px;color:var(--muted);margin:12px 0 0;max-height:280px;overflow:auto"></pre>
+  </details>
 </main>
 
 <script src="app.js"></script>
 <script>
-montarHeader('DASHBOARD DE MULTAS', 'Indicadores da carteira de autuações.', 'index.html');
-montarSubnav('dashboard.html');
+montarHeader('NOVA MULTA', 'Anexe a notificação e confira os dados extraídos.', 'index.html');
+montarSubnav('cadastro.html');
 
-let dados = [];
+let fila = [];   // linhas em edicao
+let anexos = []; // arquivos processados
 
-async function carregar() {
-  try { dados = await api('listar'); } catch (e) { toast('Erro: ' + e.message); dados = []; }
+const tbody = document.getElementById('tbody');
+const vazio = document.getElementById('vazio');
+const dz = document.getElementById('dz');
+const fileInput = document.getElementById('fileInput');
+const prog = document.getElementById('prog');
+const progTxt = document.getElementById('progTxt');
+
+/* ---------- dropzone ---------- */
+dz.addEventListener('click', () => fileInput.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  processar(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', e => { processar(Array.from(e.target.files)); fileInput.value = ''; });
+
+function lerArquivo(f) {
+  return new Promise((ok, err) => {
+    const r = new FileReader();
+    r.onload = () => ok(r.result);
+    r.onerror = () => err(new Error('Não foi possível ler ' + f.name));
+    r.readAsDataURL(f);
+  });
+}
+function setProgresso(p, txt) {
+  prog.style.display = p === null ? 'none' : 'block';
+  if (p !== null) prog.firstElementChild.style.width = Math.round(p * 100) + '%';
+  progTxt.textContent = txt || '';
+}
+
+async function processar(arquivos) {
+  if (!arquivos.length) return;
+  for (let i = 0; i < arquivos.length; i++) {
+    const f = arquivos[i];
+    const rotulo = '(' + (i + 1) + '/' + arquivos.length + ') ' + f.name;
+    setProgresso(0.05, 'Lendo ' + rotulo + '…');
+    try {
+      const dataUrl = await lerArquivo(f);
+      setProgresso(0.25, 'Extraindo dados de ' + rotulo + '…');
+      const r = await api('ocr', {
+        arquivo: dataUrl, nome: f.name, mime: f.type,
+        onProgress: p => setProgresso(0.25 + p * 0.7, 'Extraindo dados de ' + rotulo + '…')
+      });
+      document.getElementById('rawText').textContent = r.texto || '(sem texto)';
+      const campos = r.campos || {};
+      campos.anexoNome = r.anexoNome || f.name;
+      campos.anexoUrl = r.anexoUrl || '';
+      campos._arquivo = r.anexoUrl ? '' : dataUrl;   // guarda base64 se a API ainda nao salvou
+      addLinha(campos);
+      anexos.push({ nome: f.name, tamanho: f.size });
+      toast('Dados extraídos de ' + f.name);
+    } catch (e) {
+      toast('Falha em ' + f.name + ': ' + e.message, 5000);
+      addLinha({ anexoNome: f.name, _guessed: [] });
+    }
+  }
+  setProgresso(null, '');
+  renderAnexos();
+}
+
+function renderAnexos() {
+  document.getElementById('fileList').innerHTML = anexos.map((a, i) =>
+    '<div class="file-item"><span class="fname">' + esc(a.nome) + '</span>' +
+    '<span class="fsize">' + (a.tamanho / 1024).toFixed(0) + ' KB</span>' +
+    '<button class="fdel" data-i="' + i + '" title="Remover da lista">&times;</button></div>'
+  ).join('');
+  $$('#fileList .fdel').forEach(b => b.onclick = () => { anexos.splice(+b.dataset.i, 1); renderAnexos(); });
+}
+
+/* ---------- tabela ---------- */
+function addLinha(campos) {
+  const base = {
+    id: '', ait: '', placa: '', motorista: '', orgao: '', dataInfracao: '', horaInfracao: '',
+    codigoInfracao: '', descricaoInfracao: '', gravidade: '', pontos: '', valor: '',
+    vencimento: '', prazoIndicacao: '', statusIndicacao: 'NAO_APLICA', status: 'RECEBIDA',
+    local: '', municipio: '', uf: '', observacoes: '', anexoNome: '', anexoUrl: '', _guessed: []
+  };
+  fila.push(Object.assign(base, campos));
   render();
 }
 
-function barras(mapa, formato, limite) {
-  const itens = Object.entries(mapa).sort((a, b) => b[1] - a[1]).slice(0, limite || 8);
-  if (!itens.length) return '<div class="empty" style="padding:14px">Sem dados no período.</div>';
-  const max = Math.max.apply(null, itens.map(i => i[1])) || 1;
-  return itens.map(([k, v]) =>
-    '<div class="bar-row"><div class="bar-label" title="' + esc(k) + '">' + esc(k) + '</div>' +
-    '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(2, (v / max) * 100) + '%"></div></div>' +
-    '<div class="bar-val">' + (formato === 'brl' ? brl(v) : v) + '</div></div>'
-  ).join('');
+function opt(lista, sel, mapa) {
+  return lista.map(o => {
+    const v = mapa ? o.v : o, t = mapa ? o.label : o;
+    return '<option value="' + esc(v) + '"' + (String(sel) === String(v) ? ' selected' : '') + '>' + esc(t) + '</option>';
+  }).join('');
 }
 
 function render() {
-  const lista = aplicarFiltros(dados, { de: fde.value, ate: fate.value });
-  const totalGeral = lista.reduce((s, m) => s + numero(m.valor), 0);
-  const pagas = lista.filter(m => m.status === 'PAGA');
-  const aPagar = lista.filter(m => m.status === 'A_PAGAR');
-  const vencidas = aPagar.filter(m => { const d = diasAte(m.vencimento); return d !== null && d < 0; });
-  const pontos = lista.filter(m => m.statusIndicacao !== 'ACEITA').reduce((s, m) => s + numero(m.pontos), 0);
-  const ticket = lista.length ? totalGeral / lista.length : 0;
+  vazio.style.display = fila.length ? 'none' : 'block';
+  document.getElementById('btnSalvar').disabled = !fila.length;
+  document.getElementById('resumo').textContent = fila.length
+    ? fila.length + ' multa(s) na fila · total ' + brl(fila.reduce((s, m) => s + numero(m.valor), 0))
+    : 'Nenhuma multa na fila.';
 
-  document.getElementById('resumo').textContent =
-    lista.length + ' multa(s) no período · ' + brl(totalGeral);
+  tbody.innerHTML = fila.map((m, i) => {
+    const g = k => (m._guessed || []).includes(k) ? ' class="guessed"' : '';
+    const inp = (k, tipo, extra) => '<input data-i="' + i + '" data-k="' + k + '" type="' + (tipo || 'text') +
+      '" value="' + esc(tipo === 'date' ? iso(m[k]) : m[k]) + '" ' + (extra || '') + '>';
+    return '<tr>' +
+      '<td class="center"><button class="fdel" data-del="' + i + '" title="Remover linha">&times;</button></td>' +
+      '<td' + g('ait') + '>' + inp('ait') + '</td>' +
+      '<td' + g('placa') + '>' + inp('placa', 'text', 'style="text-transform:uppercase"') + '</td>' +
+      '<td>' + inp('motorista') + '</td>' +
+      '<td' + g('orgao') + '><select data-i="' + i + '" data-k="orgao"><option value=""></option>' + opt(ORGAOS, m.orgao) + '</select></td>' +
+      '<td' + g('dataInfracao') + '>' + inp('dataInfracao', 'date') + '</td>' +
+      '<td' + g('codigoInfracao') + '>' + inp('codigoInfracao') + '</td>' +
+      '<td' + g('descricaoInfracao') + '>' + inp('descricaoInfracao') + '</td>' +
+      '<td' + g('gravidade') + '><select data-i="' + i + '" data-k="gravidade"><option value=""></option>' +
+        GRAVIDADES.map(x => '<option value="' + x + '"' + (m.gravidade === x ? ' selected' : '') + '>' + GRAV_LABEL[x] + '</option>').join('') +
+      '</select></td>' +
+      '<td' + g('valor') + '>' + inp('valor', 'number', 'step="0.01" min="0"') + '</td>' +
+      '<td' + g('vencimento') + '>' + inp('vencimento', 'date') + '</td>' +
+      '<td' + g('prazoIndicacao') + '>' + inp('prazoIndicacao', 'date') + '</td>' +
+      '<td><select data-i="' + i + '" data-k="status">' + opt(STATUS, m.status, true) + '</select></td>' +
+      '<td class="mono" style="font-size:12px">' + (m.anexoNome ? esc(m.anexoNome).slice(0, 18) : '—') + '</td>' +
+    '</tr>';
+  }).join('');
 
-  document.getElementById('kpis').innerHTML = [
-    ['accent', 'Total de multas', lista.length, 'ticket médio ' + brl(ticket)],
-    ['warn', 'Valor a pagar', brl(aPagar.reduce((s, m) => s + numero(m.valor), 0)), aPagar.length + ' em aberto'],
-    ['ok', 'Já pago', brl(pagas.reduce((s, m) => s + numero(m.valor), 0)), pagas.length + ' quitada(s)'],
-    ['danger', 'Vencidas', vencidas.length, brl(vencidas.reduce((s, m) => s + numero(m.valor), 0)) + ' em atraso'],
-    ['accent', 'Pontos na empresa', pontos, 'não transferidos ao condutor']
-  ].map(([c, l, v, s]) =>
-    '<div class="kpi ' + c + '"><div class="kpi-label">' + l + '</div><div class="kpi-value">' + v + '</div><div class="kpi-sub">' + s + '</div></div>'
-  ).join('');
-
-  const porMes = {}, porStatus = {}, porMot = {}, porPlaca = {}, porOrgao = {}, porInfr = {};
-  const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-  lista.forEach(m => {
-    const d = toDate(m.dataInfracao);
-    if (d) { const k = MES[d.getMonth()] + '/' + String(d.getFullYear()).slice(2); porMes[k] = (porMes[k] || 0) + 1; }
-    const st = statusInfo(m.status).label; porStatus[st] = (porStatus[st] || 0) + 1;
-    const mot = m.motorista || 'Não indicado'; porMot[mot] = (porMot[mot] || 0) + numero(m.valor);
-    if (m.placa) porPlaca[m.placa] = (porPlaca[m.placa] || 0) + 1;
-    const org = m.orgao || 'Não informado'; porOrgao[org] = (porOrgao[org] || 0) + 1;
-    const inf = (m.descricaoInfracao || m.codigoInfracao || 'Não informada').slice(0, 42);
-    porInfr[inf] = (porInfr[inf] || 0) + 1;
+  $$('#tbody input, #tbody select').forEach(el => {
+    el.addEventListener('input', () => {
+      const m = fila[+el.dataset.i], k = el.dataset.k;
+      m[k] = el.type === 'date' ? el.value : el.value;
+      if (k === 'placa') m.placa = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (k === 'valor') document.getElementById('resumo').textContent =
+        fila.length + ' multa(s) na fila · total ' + brl(fila.reduce((s, x) => s + numero(x.valor), 0));
+    });
   });
-
-  // mes em ordem cronologica
-  const mesOrd = {};
-  Object.keys(porMes).sort((a, b) => {
-    const pa = a.split('/'), pb = b.split('/');
-    return (+pa[1] - +pb[1]) || (MES.indexOf(pa[0]) - MES.indexOf(pb[0]));
-  }).forEach(k => mesOrd[k] = porMes[k]);
-
-  chMes.innerHTML = barras(mesOrd, null, 12);
-  chStatus.innerHTML = barras(porStatus, null, 8);
-  chMotorista.innerHTML = barras(porMot, 'brl', 8);
-  chPlaca.innerHTML = barras(porPlaca, null, 8);
-  chOrgao.innerHTML = barras(porOrgao, null, 8);
-  chInfracao.innerHTML = barras(porInfr, null, 8);
-
-  const venc = lista.filter(m => {
-    if (['PAGA', 'CANCELADA'].includes(m.status)) return false;
-    const d = diasAte(m.vencimento);
-    return d !== null && d <= 15;
-  }).sort((a, b) => (toDate(a.vencimento) || 0) - (toDate(b.vencimento) || 0));
-
-  document.getElementById('vazioVenc').style.display = venc.length ? 'none' : 'block';
-  document.getElementById('tbVenc').innerHTML = venc.map(m =>
-    '<tr><td class="mono">' + esc(m.ait || '—') + '</td>' +
-    '<td class="mono"><b>' + esc(m.placa || '—') + '</b></td>' +
-    '<td>' + esc(m.motorista || '—') + '</td>' +
-    '<td>' + esc(m.descricaoInfracao || '—').slice(0, 60) + '</td>' +
-    '<td class="num">' + brl(numero(m.valor)) + '</td>' +
-    '<td class="mono">' + br(m.vencimento) + '</td>' +
-    '<td>' + pillPrazo(m.vencimento) + '</td></tr>'
-  ).join('');
+  $$('#tbody [data-del]').forEach(b => b.onclick = () => { fila.splice(+b.dataset.del, 1); render(); });
 }
 
-btn12m.onclick = () => {
-  const a = new Date(); const d = new Date(a.getFullYear() - 1, a.getMonth(), a.getDate());
-  fde.value = iso(d); fate.value = iso(a); render();
+/* ---------- acoes ---------- */
+document.getElementById('btnLinha').onclick = () => addLinha({});
+document.getElementById('btnLimpar').onclick = () => {
+  if (fila.length && !confirm('Descartar as ' + fila.length + ' linha(s) da fila?')) return;
+  fila = []; anexos = []; renderAnexos(); render();
 };
-[fde, fate].forEach(el => el.addEventListener('input', render));
-btnReload.onclick = carregar;
-carregar();
+document.getElementById('btnSalvar').onclick = async () => {
+  const faltando = fila.filter(m => !m.placa || !m.dataInfracao);
+  if (faltando.length && !confirm(faltando.length + ' linha(s) sem placa ou data da infração. Salvar assim mesmo?')) return;
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    const itens = fila.map(m => {
+      const o = {}; CAMPOS.forEach(k => { if (m[k] !== undefined) o[k] = m[k]; });
+      o.valor = numero(m.valor);
+      o._arquivo = m._arquivo || '';
+      return o;
+    });
+    await api('salvar', { itens });
+    toast('Salvo: ' + itens.length + ' multa(s).');
+    fila = []; anexos = []; renderAnexos(); render();
+  } catch (e) {
+    toast('Erro ao salvar: ' + e.message, 5000);
+  } finally {
+    btn.textContent = 'Salvar na base'; btn.disabled = !fila.length;
+  }
+};
+
+render();
 </script>
 </body>
 </html>
