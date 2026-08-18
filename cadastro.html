@@ -60,6 +60,8 @@
           <th style="min-width:130px">AIT</th>
           <th style="min-width:100px">Placa</th>
           <th style="min-width:160px">Motorista</th>
+          <th style="min-width:145px">CPF</th>
+          <th style="min-width:130px">Setor</th>
           <th style="min-width:120px">Órgão</th>
           <th style="min-width:130px">Data infração</th>
           <th style="min-width:100px">Código</th>
@@ -89,7 +91,7 @@
 </main>
 
 <datalist id="listaMotoristas"></datalist>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 <script>
 montarHeader('NOVA MULTA', 'Anexe a notificação e confira os dados extraídos.', 'index.html');
 montarSubnav('cadastro.html');
@@ -170,7 +172,7 @@ function renderAnexos() {
 /* ---------- tabela ---------- */
 function addLinha(campos) {
   const base = {
-    id: '', ait: '', placa: '', motorista: '', orgao: '', dataInfracao: '', horaInfracao: '',
+    id: '', ait: '', placa: '', motorista: '', cpf: '', setor: '', orgao: '', dataInfracao: '', horaInfracao: '',
     codigoInfracao: '', descricaoInfracao: '', gravidade: '', pontos: '', valor: '',
     vencimento: '', prazoIndicacao: '', statusIndicacao: 'NAO_APLICA', status: 'RECEBIDA',
     local: '', municipio: '', uf: '', observacoes: '', anexoNome: '', anexoUrl: '', _guessed: []
@@ -202,6 +204,8 @@ function render() {
       '<td' + g('ait') + '>' + inp('ait') + '</td>' +
       '<td' + g('placa') + '>' + inp('placa', 'text', 'style="text-transform:uppercase"') + '</td>' +
       '<td' + g('motorista') + '>' + inp('motorista', 'text', 'list="listaMotoristas"') + '</td>' +
+      '<td>' + inp('cpf', 'text', 'inputmode="numeric" placeholder="000.000.000-00"') + '</td>' +
+      '<td>' + inp('setor') + '</td>' +
       '<td' + g('orgao') + '><select data-i="' + i + '" data-k="orgao"><option value=""></option>' + opt(ORGAOS, m.orgao) + '</select></td>' +
       '<td' + g('dataInfracao') + '>' + inp('dataInfracao', 'date') + '</td>' +
       '<td' + g('codigoInfracao') + '>' + inp('codigoInfracao') + '</td>' +
@@ -256,7 +260,7 @@ document.getElementById('btnSalvar').onclick = async () => {
       const o = {}; CAMPOS.forEach(k => { if (m[k] !== undefined) o[k] = m[k]; });
       o.valor = numero(m.valor);
       o._arquivo = m._arquivo || '';
-      return o;
+      return sincronizarStatusIndicacao(o);
     });
     fila.forEach(m => lembrarMotorista(m.placa, m.motorista));
     await api('salvar', { itens });

@@ -20,7 +20,7 @@ window.MULTAS_CONFIG = {
 window.multasInfo = function () {
   const c = window.MULTAS_CONFIG;
   const info = {
-    build: 'v9',
+    build: 'v10',
     modo: c.API_URL ? 'PRODUCAO' : 'DEMO',
     apiUrl: c.API_URL || '(vazio)',
     tokenEnviado: String(c.TOKEN || TOKEN_PADRAO).trim() || TOKEN_PADRAO
@@ -52,7 +52,7 @@ const STATUS_INDICACAO = [
 ];
 
 const CAMPOS = [
-  'id', 'ait', 'renainf', 'placa', 'motorista', 'cnhMotorista', 'orgao',
+  'id', 'ait', 'renainf', 'placa', 'motorista', 'cpf', 'setor', 'cnhMotorista', 'orgao',
   'dataInfracao', 'horaInfracao', 'local', 'municipio', 'uf',
   'codigoInfracao', 'descricaoInfracao', 'gravidade', 'pontos',
   'valor', 'valorComDesconto', 'vencimento', 'prazoIndicacao',
@@ -109,6 +109,13 @@ function esc(s) {
 function uid() { return 'M' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase(); }
 
 function statusInfo(v) { return STATUS.find(s => s.v === v) || STATUS[0]; }
+/** Mantém o processo de indicação elegível quando esse for o status da multa. */
+function sincronizarStatusIndicacao(m) {
+  if (m && m.status === 'INDICACAO' && (!m.statusIndicacao || m.statusIndicacao === 'NAO_APLICA')) {
+    m.statusIndicacao = 'PENDENTE';
+  }
+  return m;
+}
 function badgeStatus(m) {
   const venc = diasAte(m.vencimento);
   if (m.status === 'A_PAGAR' && venc !== null && venc < 0) {
@@ -569,7 +576,7 @@ function aplicarFiltros(lista, f) {
     if (f.de && toDate(m.dataInfracao) && toDate(m.dataInfracao) < toDate(f.de)) return false;
     if (f.ate && toDate(m.dataInfracao) && toDate(m.dataInfracao) > toDate(f.ate)) return false;
     if (q) {
-      const alvo = [m.ait, m.placa, m.motorista, m.descricaoInfracao, m.local, m.municipio, m.codigoInfracao]
+      const alvo = [m.ait, m.placa, m.motorista, m.cpf, m.setor, m.descricaoInfracao, m.local, m.municipio, m.codigoInfracao]
         .join(' ').toLowerCase();
       if (!alvo.includes(q)) return false;
     }
@@ -579,7 +586,7 @@ function aplicarFiltros(lista, f) {
 
 /* ---------- 11. EXPORTACAO CSV ---------- */
 function exportarCSV(lista, nome) {
-  const cols = ['ait', 'placa', 'motorista', 'orgao', 'dataInfracao', 'horaInfracao', 'codigoInfracao',
+  const cols = ['ait', 'placa', 'motorista', 'cpf', 'setor', 'orgao', 'dataInfracao', 'horaInfracao', 'codigoInfracao',
     'descricaoInfracao', 'gravidade', 'pontos', 'valor', 'vencimento', 'prazoIndicacao',
     'statusIndicacao', 'status', 'local', 'municipio', 'uf', 'observacoes'];
   const linhas = [cols.join(';')].concat(lista.map(m =>

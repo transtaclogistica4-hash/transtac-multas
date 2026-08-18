@@ -81,7 +81,7 @@
   </div>
 </div>
 
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 <script>
 montarHeader('INDICAÇÃO DE CONDUTOR', 'Controle do prazo legal e da situação de cada processo.', 'index.html');
 montarSubnav('indicacao.html');
@@ -90,7 +90,11 @@ let dados = [], atual = null;
 STATUS_INDICACAO.forEach(s => { fsit.add(new Option(s.label, s.v)); i_situacao.add(new Option(s.label, s.v)); });
 
 async function carregar() {
-  try { dados = await api('listar'); } catch (e) { toast('Erro: ' + e.message); dados = []; }
+  try {
+    dados = await api('listar');
+    // Compatibilidade com registros já salvos apenas com o status da multa.
+    dados.forEach(sincronizarStatusIndicacao);
+  } catch (e) { toast('Erro: ' + e.message); dados = []; }
   render();
 }
 

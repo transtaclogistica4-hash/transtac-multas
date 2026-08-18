@@ -84,6 +84,8 @@
       <div class="field sm"><label>Renainf</label><input id="e_renainf"></div>
       <div class="field sm"><label>Placa</label><input id="e_placa" style="text-transform:uppercase"></div>
       <div class="field"><label>Motorista</label><input id="e_motorista"></div>
+      <div class="field sm"><label>CPF</label><input id="e_cpf" inputmode="numeric" placeholder="000.000.000-00"></div>
+      <div class="field sm"><label>Setor</label><input id="e_setor"></div>
     </div>
     <div class="row" style="margin-top:10px">
       <div class="field sm"><label>Órgão</label><select id="e_orgao"></select></div>
@@ -124,7 +126,7 @@
   </div>
 </div>
 
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 <script>
 montarHeader('MULTAS', 'Todas as autuações registradas.', 'index.html');
 montarSubnav('lista.html');
@@ -182,7 +184,7 @@ function abrir(id) {
   if (!atual) return;
   mTitulo.textContent = 'Multa ' + (atual.ait || atual.id);
   mSub.textContent = (atual.placa || '') + ' · ' + br(atual.dataInfracao) + ' · ' + (atual.orgao || 'órgão não informado');
-  ['ait','renainf','placa','motorista','orgao','horaInfracao','codigoInfracao','descricaoInfracao',
+  ['ait','renainf','placa','motorista','cpf','setor','orgao','horaInfracao','codigoInfracao','descricaoInfracao',
    'local','municipio','uf','gravidade','pontos','valor','status','statusIndicacao','responsavel','observacoes']
     .forEach(k => { const el = document.getElementById('e_' + k); if (el) el.value = atual[k] == null ? '' : atual[k]; });
   ['dataInfracao','vencimento','prazoIndicacao','dataPagamento']
@@ -198,13 +200,14 @@ modal.onclick = e => { if (e.target === modal) modal.classList.remove('show'); }
 
 mSalvar.onclick = async () => {
   const item = { id: atual.id };
-  ['ait','renainf','placa','motorista','orgao','dataInfracao','horaInfracao','codigoInfracao',
+  ['ait','renainf','placa','motorista','cpf','setor','orgao','dataInfracao','horaInfracao','codigoInfracao',
    'descricaoInfracao','local','municipio','uf','gravidade','pontos','valor','vencimento',
    'prazoIndicacao','statusIndicacao','status','responsavel','dataPagamento','observacoes']
     .forEach(k => { const el = document.getElementById('e_' + k); if (el) item[k] = el.value; });
   item.placa = (item.placa || '').toUpperCase();
   item.uf = (item.uf || '').toUpperCase();
   item.valor = numero(item.valor);
+  sincronizarStatusIndicacao(item);
   mSalvar.disabled = true;
   try {
     await api('salvar', { itens: [item] });
